@@ -10,13 +10,26 @@ public class GameClient {
 
         Socket socket = new Socket("localhost", 5000);
 
-        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(socket.getInputStream()));
 
-        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+        PrintWriter out = new PrintWriter(
+                socket.getOutputStream(), true);
 
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println(in.readLine());
+        Thread serverListener = new Thread(() -> {
+            try {
+                String response;
+                while ((response = in.readLine()) != null) {
+                    System.out.println("SERVER: " + response);
+                }
+            } catch (Exception e) {
+                System.out.println("Disconnected from server");
+            }
+        });
+
+        serverListener.start();
 
         while (true) {
 
@@ -24,12 +37,11 @@ public class GameClient {
 
             out.println(input);
 
-            String response = in.readLine();
-
-            System.out.println("SERVER: " + response);
-
+            if(input.equals("-") || input.equalsIgnoreCase("quit")){
+                break;
+            }
         }
 
+        socket.close();
     }
-
 }

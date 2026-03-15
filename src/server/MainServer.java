@@ -9,6 +9,7 @@ import server.repositoryImpl.FileUserRepository;
 import server.repositoryImpl.FileQuestionRepository;
 import server.service.AuthService;
 import server.service.QuestionService;
+import server.service.ScoreService;
 
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -20,13 +21,12 @@ public class MainServer {
         ServerSocket serverSocket = new ServerSocket(5000);
 
         UserRepository userRepo = new FileUserRepository("src/data/users.txt");
-
         QuestionRepository questionRepo = new FileQuestionRepository("src/data/questions.txt");
         ScoreRepository scoreRepo = new FileScoreRepository("src/data/scores.txt");
 
-
         AuthService authService = new AuthService(userRepo);
         QuestionService questionService = new QuestionService(questionRepo);
+        ScoreService scoreService = new ScoreService(scoreRepo);
 
         System.out.println("Trivia Server started on port 5000...");
 
@@ -36,7 +36,12 @@ public class MainServer {
 
             System.out.println("New client connected: " + client.getInetAddress());
 
-            ClientHandler handler = new ClientHandler(client, authService, questionService);
+            ClientHandler handler = new ClientHandler(
+                    client,
+                    authService,
+                    questionService,
+                    scoreService
+            );
 
             new Thread(handler).start();
         }

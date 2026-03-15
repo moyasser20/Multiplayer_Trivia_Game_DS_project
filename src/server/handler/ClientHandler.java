@@ -7,6 +7,7 @@ import server.service.ScoreService;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientHandler implements Runnable {
 
@@ -50,6 +51,7 @@ public class ClientHandler implements Runnable {
 
                 String[] parts = request.split(" ");
 
+                // ---------- REGISTER ----------
                 if(parts[0].equalsIgnoreCase("REGISTER")){
 
                     if(parts.length < 4){
@@ -61,10 +63,10 @@ public class ClientHandler implements Runnable {
                     String username = parts[2];
                     String password = parts[3];
 
-                    String result = authService.register(name, username, password);
-                    out.println(result);
+                    out.println(authService.register(name, username, password));
                 }
 
+                // ---------- LOGIN ----------
                 else if(parts[0].equalsIgnoreCase("LOGIN")){
 
                     if(parts.length < 3){
@@ -90,6 +92,7 @@ public class ClientHandler implements Runnable {
                     }
                 }
 
+                // ---------- MENU ----------
                 else if(loggedIn && parts[0].equals("1")){
 
                     out.println("Single Player Mode Activated");
@@ -107,19 +110,6 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
-                else if(loggedIn && parts[0].equalsIgnoreCase("GET_QUESTION")){
-
-                    if(parts.length < 3){
-                        out.println("INVALID_QUESTION_FORMAT");
-                        continue;
-                    }
-
-                    String category = parts[1];
-                    String difficulty = parts[2];
-
-                    sendQuestion(out, category, difficulty, in);
-                }
-
                 else{
                     out.println("UNKNOWN_COMMAND");
                 }
@@ -132,6 +122,8 @@ public class ClientHandler implements Runnable {
             System.out.println("Client disconnected unexpectedly");
         }
     }
+
+    // ---------------- SINGLE PLAYER GAME ----------------
 
     private void startSinglePlayer(PrintWriter out, BufferedReader in) throws IOException {
 
@@ -162,7 +154,7 @@ public class ClientHandler implements Runnable {
                 break;
             }
 
-            score += askQuestion(q, out, in);
+            score += askQuestionWithTimer(q, out, in);
         }
 
         out.println("GAME OVER! Your score = " + score);
@@ -170,8 +162,11 @@ public class ClientHandler implements Runnable {
         scoreService.addScore(currentUser, score);
     }
 
+    // ---------------- QUESTION WITH TIMER ----------------
 
-    private int askQuestion(Question q, PrintWriter out, BufferedReader in) throws IOException {
+    private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException {
+
+        AtomicBoolean questionActive = new AtomicBoolean(true);
 
         out.println("QUESTION: " + q.getText());
 
@@ -182,11 +177,41 @@ public class ClientHandler implements Runnable {
             option++;
         }
 
-        out.println("END_QUESTION");
+        out.println("You have 15 seconds to answer!");
 
-        out.println("Enter your answer (A/B/C/D):");
+        // ---------- TIMER THREAD ----------
+
+        Thread timer = new Thread(() -> {
+            try {
+
+                Thread.sleep(5000);
+                if(questionActive.get()) out.println("10 seconds left");
+
+                Thread.sleep(5000);
+                if(questionActive.get()) out.println("5 seconds left");
+
+                Thread.sleep(5000);
+
+                if(questionActive.get()){
+                    out.println("TIME UP!");
+                    questionActive.set(false);
+                }
+
+            } catch (InterruptedException ignored) {}
+        });
+
+        timer.start();
+
+        // ---------- READ ANSWER ----------
 
         String answer = in.readLine();
+
+        if(!questionActive.get()){
+            out.println("Answer ignored (time finished)");
+            return 0;
+        }
+
+        questionActive.set(false);
 
         if(answer == null) return 0;
 
@@ -201,50 +226,6 @@ public class ClientHandler implements Runnable {
 
             out.println("WRONG! Correct answer: " + q.getCorrectAnswer());
             return 0;
-        }
-    }
-
-
-    private void sendQuestion(PrintWriter out,
-                              String category,
-                              String difficulty,
-                              BufferedReader in) throws IOException {
-
-        Question q = questionService.getRandomQuestion(category, difficulty);
-
-        if(q == null){
-            out.println("NO_QUESTION_FOUND");
-            return;
-        }
-
-        out.println("QUESTION: " + q.getText());
-
-        char option = 'A';
-
-        for(String choice : q.getChoices()){
-            out.println(option + ") " + choice);
-            option++;
-        }
-
-        out.println("END_QUESTION");
-
-        out.println("Enter your answer (A/B/C/D):");
-
-        String answer = in.readLine();
-
-        if(answer == null) return;
-
-        answer = answer.trim();
-
-        if(answer.equalsIgnoreCase(q.getCorrectAnswer())){
-
-            out.println("CORRECT!");
-
-            scoreService.addScore(currentUser, 10);
-
-        }else{
-
-            out.println("WRONG! Correct answer: " + q.getCorrectAnswer());
         }
     }
 }

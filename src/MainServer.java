@@ -1,5 +1,3 @@
-package server;
-
 import server.handler.ClientHandler;
 import server.repository.ScoreRepository;
 import server.repository.UserRepository;

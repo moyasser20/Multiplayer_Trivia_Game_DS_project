@@ -1,0 +1,6 @@
+What is 2+2?|Math|easy|3;4;5;6|B
+What is 5*6?|Math|easy|11;20;30;40|C
+Capital of France?|Geography|easy|London;Paris;Berlin;Rome|B
+Capital of Egypt?|Geography|easy|Cairo;Giza;Alexandria;Luxor|A
+What planet is known as Red Planet?|Science|easy|Earth;Mars;Venus;Jupiter|B
+What gas do plants absorb?|Science|easy|Oxygen;Nitrogen;Carbon Dioxide;Helium|C

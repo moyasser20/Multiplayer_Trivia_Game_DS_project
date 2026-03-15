@@ -7,6 +7,8 @@ import server.service.ScoreService;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientHandler implements Runnable {
@@ -18,6 +20,10 @@ public class ClientHandler implements Runnable {
 
     private boolean loggedIn = false;
     private String currentUser;
+
+    // Teams
+    private static List<String> teamA = new ArrayList<>();
+    private static List<String> teamB = new ArrayList<>();
 
     public ClientHandler(Socket socket,
                          AuthService authService,
@@ -51,7 +57,8 @@ public class ClientHandler implements Runnable {
 
                 String[] parts = request.split(" ");
 
-                // ---------- REGISTER ----------
+                // ---------------- REGISTER ----------------
+
                 if(parts[0].equalsIgnoreCase("REGISTER")){
 
                     if(parts.length < 4){
@@ -66,7 +73,8 @@ public class ClientHandler implements Runnable {
                     out.println(authService.register(name, username, password));
                 }
 
-                // ---------- LOGIN ----------
+                // ---------------- LOGIN ----------------
+
                 else if(parts[0].equalsIgnoreCase("LOGIN")){
 
                     if(parts.length < 3){
@@ -78,6 +86,7 @@ public class ClientHandler implements Runnable {
                     String password = parts[2];
 
                     String result = authService.login(username, password);
+
                     out.println(result);
 
                     if(result.equals("LOGIN_SUCCESS")){
@@ -87,22 +96,77 @@ public class ClientHandler implements Runnable {
 
                         out.println("MENU:");
                         out.println("1) Single Player");
-                        out.println("2) Multiplayer (Coming Later)");
+                        out.println("2) Multiplayer");
                         out.println("3) Quit");
                     }
                 }
 
-                // ---------- MENU ----------
+                // ---------------- SINGLE PLAYER ----------------
+
                 else if(loggedIn && parts[0].equals("1")){
 
                     out.println("Single Player Mode Activated");
+
                     startSinglePlayer(out, in);
                 }
 
+                // ---------------- MULTIPLAYER MENU ----------------
+
                 else if(loggedIn && parts[0].equals("2")){
 
-                    out.println("Multiplayer Mode will be implemented later.");
+                    out.println("MULTIPLAYER OPTIONS:");
+                    out.println("JOIN_TEAM_A");
+                    out.println("JOIN_TEAM_B");
+                    out.println("START_GAME");
                 }
+
+                // ---------------- JOIN TEAM A ----------------
+
+                else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_A")){
+
+                    if(!teamA.contains(currentUser)){
+                        teamA.add(currentUser);
+                    }
+
+                    out.println("Joined Team Alpha");
+                    out.println("Team Alpha players: " + teamA.size());
+                }
+
+                // ---------------- JOIN TEAM B ----------------
+
+                else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_B")){
+
+                    if(!teamB.contains(currentUser)){
+                        teamB.add(currentUser);
+                    }
+
+                    out.println("Joined Team Beta");
+                    out.println("Team Beta players: " + teamB.size());
+                }
+
+                // ---------------- START MULTIPLAYER GAME ----------------
+
+                else if(loggedIn && parts[0].equalsIgnoreCase("START_GAME")){
+
+                    if(teamA.size() == 0 || teamB.size() == 0){
+                        out.println("Both teams must have players");
+                        continue;
+                    }
+
+                    if(teamA.size() != teamB.size()){
+                        out.println("Teams must have equal number of players");
+                        continue;
+                    }
+
+                    out.println("GAME STARTED!");
+                    out.println("Team Alpha: " + teamA);
+                    out.println("Team Beta: " + teamB);
+
+                    // For now use same single player engine
+                    startSinglePlayer(out, in);
+                }
+
+                // ---------------- QUIT ----------------
 
                 else if(loggedIn && parts[0].equals("3")){
 
@@ -179,9 +243,8 @@ public class ClientHandler implements Runnable {
 
         out.println("You have 15 seconds to answer!");
 
-        // ---------- TIMER THREAD ----------
-
         Thread timer = new Thread(() -> {
+
             try {
 
                 Thread.sleep(5000);
@@ -201,8 +264,6 @@ public class ClientHandler implements Runnable {
         });
 
         timer.start();
-
-        // ---------- READ ANSWER ----------
 
         String answer = in.readLine();
 

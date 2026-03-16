@@ -1,2 +1,4 @@
 ahmed,ahmed123,1234
 mohamed,mohamed123,1234
+admin,admin123,1234
+Admin,admin,1234

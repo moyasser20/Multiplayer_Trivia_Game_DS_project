@@ -21,17 +21,19 @@ public class ClientHandler implements Runnable {
     private boolean loggedIn = false;
     private String currentUser;
 
+    private boolean singlePlayerMenu = false;
+
     // Teams
     private static List<String> teamA = new ArrayList<>();
     private static List<String> teamB = new ArrayList<>();
 
     // Game scores
-    private static Map<String, Integer> gameScores = new HashMap<>();
+    private static Map<String,Integer> gameScores = new HashMap<>();
 
     public ClientHandler(Socket socket,
                          AuthService authService,
                          QuestionService questionService,
-                         ScoreService scoreService) {
+                         ScoreService scoreService){
 
         this.socket = socket;
         this.authService = authService;
@@ -40,27 +42,31 @@ public class ClientHandler implements Runnable {
     }
 
     @Override
-    public void run() {
+    public void run(){
 
-        try {
+        try{
 
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream()));
+
+            PrintWriter out = new PrintWriter(
+                    socket.getOutputStream(), true);
 
             out.println("WELCOME TO TRIVIA SERVER");
 
             String request;
 
-            while ((request = in.readLine()) != null) {
+            while((request = in.readLine()) != null){
 
-                if(request.equals("-") || request.equalsIgnoreCase("QUIT")){
+                if(request.equalsIgnoreCase("QUIT")){
                     out.println("GOODBYE");
                     break;
                 }
 
                 String[] parts = request.split(" ");
 
-                // REGISTER
+                // ---------------- REGISTER ----------------
+
                 if(parts[0].equalsIgnoreCase("REGISTER")){
 
                     if(parts.length < 4){
@@ -72,10 +78,11 @@ public class ClientHandler implements Runnable {
                     String username = parts[2];
                     String password = parts[3];
 
-                    out.println(authService.register(name, username, password));
+                    out.println(authService.register(name,username,password));
                 }
 
-                // LOGIN
+                // ---------------- LOGIN ----------------
+
                 else if(parts[0].equalsIgnoreCase("LOGIN")){
 
                     if(parts.length < 3){
@@ -86,7 +93,7 @@ public class ClientHandler implements Runnable {
                     String username = parts[1];
                     String password = parts[2];
 
-                    String result = authService.login(username, password);
+                    String result = authService.login(username,password);
 
                     out.println(result);
 
@@ -103,16 +110,42 @@ public class ClientHandler implements Runnable {
                     }
                 }
 
-                // SINGLE PLAYER
-                else if(loggedIn && parts[0].equals("1")){
+                // ---------------- SINGLE PLAYER MENU ----------------
 
-                    out.println("Single Player Mode Activated");
+                else if(loggedIn && request.equals("1") && !singlePlayerMenu){
 
-                    startSinglePlayer(out, in);
+                    singlePlayerMenu = true;
+
+                    out.println("SINGLE PLAYER OPTIONS:");
+                    out.println("1) Custom Trivia");
+                    out.println("2) Random Trivia");
                 }
 
-                // MULTIPLAYER MENU
-                else if(loggedIn && parts[0].equals("2")){
+                // ---------------- CUSTOM TRIVIA ----------------
+
+                else if(loggedIn && singlePlayerMenu && request.equals("1")){
+
+                    singlePlayerMenu = false;
+
+                    out.println("Custom Trivia Mode");
+
+                    startSinglePlayer(out,in);
+                }
+
+                // ---------------- RANDOM TRIVIA ----------------
+
+                else if(loggedIn && singlePlayerMenu && request.equals("2")){
+
+                    singlePlayerMenu = false;
+
+                    out.println("Random Trivia Mode");
+
+                    startRandomTrivia(out,in);
+                }
+
+                // ---------------- MULTIPLAYER ----------------
+
+                else if(loggedIn && request.equals("2")){
 
                     out.println("MULTIPLAYER OPTIONS:");
                     out.println("JOIN_TEAM_A");
@@ -120,40 +153,33 @@ public class ClientHandler implements Runnable {
                     out.println("START_GAME");
                 }
 
-                // SCORE HISTORY
-                else if(loggedIn && parts[0].equals("3")){
+                // ---------------- JOIN TEAM A ----------------
 
-                    out.println("Your Score History:");
-
-                    List<Score> history = scoreService.getUserScores(currentUser);
-
-                    for(Score s : history){
-                        out.println(s.getScore());
-                    }
-                }
-
-                // JOIN TEAM A
-                else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_A")){
+                else if(loggedIn && request.equalsIgnoreCase("JOIN_TEAM_A")){
 
                     if(!teamA.contains(currentUser)){
                         teamA.add(currentUser);
                     }
 
                     out.println("Joined Team Alpha");
+                    out.println("Players in Team Alpha: " + teamA.size());
                 }
 
-                // JOIN TEAM B
-                else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_B")){
+                // ---------------- JOIN TEAM B ----------------
+
+                else if(loggedIn && request.equalsIgnoreCase("JOIN_TEAM_B")){
 
                     if(!teamB.contains(currentUser)){
                         teamB.add(currentUser);
                     }
 
                     out.println("Joined Team Beta");
+                    out.println("Players in Team Beta: " + teamB.size());
                 }
 
-                // START GAME
-                else if(loggedIn && parts[0].equalsIgnoreCase("START_GAME")){
+                // ---------------- START MULTIPLAYER GAME ----------------
+
+                else if(loggedIn && request.equalsIgnoreCase("START_GAME")){
 
                     if(teamA.size() == 0 || teamB.size() == 0){
                         out.println("Both teams must have players");
@@ -169,38 +195,91 @@ public class ClientHandler implements Runnable {
                     out.println("Team Alpha: " + teamA);
                     out.println("Team Beta: " + teamB);
 
-                    startSinglePlayer(out, in);
+                    startRandomTrivia(out,in);
                 }
 
-                // QUIT
-                else if(loggedIn && parts[0].equals("4")){
+                // ---------------- SCORE HISTORY ----------------
+
+                else if(loggedIn && request.equals("3")){
+
+                    out.println("YOUR SCORE HISTORY:");
+
+                    List<Score> history = scoreService.getUserScores(currentUser);
+
+                    if(history.isEmpty()){
+                        out.println("No previous scores");
+                    }
+
+                    for(Score s : history){
+                        out.println("Score: " + s.getScore());
+                    }
+                }
+
+                // ---------------- QUIT ----------------
+
+                else if(loggedIn && request.equals("4")){
 
                     out.println("GOODBYE");
                     break;
                 }
 
+                // ---------------- UNKNOWN ----------------
+
                 else{
                     out.println("UNKNOWN_COMMAND");
                 }
+
             }
 
             socket.close();
 
-        } catch (Exception e) {
+        }catch(Exception e){
 
-            System.out.println("Client disconnected unexpectedly");
+            System.out.println("Client disconnected");
         }
     }
 
-    // SINGLE PLAYER GAME
+    // ---------------- CUSTOM TRIVIA GAME ----------------
 
-    private void startSinglePlayer(PrintWriter out, BufferedReader in) throws IOException {
+    private void startSinglePlayer(PrintWriter out, BufferedReader in) throws IOException{
 
         out.println("Enter category (Math / Science / Geography):");
         String category = in.readLine();
 
         out.println("Enter difficulty (easy / medium / hard):");
         String difficulty = in.readLine();
+
+        out.println("How many questions?");
+        int numQuestions;
+
+        try{
+            numQuestions = Integer.parseInt(in.readLine());
+        }catch(Exception e){
+            numQuestions = 5;
+        }
+
+        int score = 0;
+
+        for(int i=0;i<numQuestions;i++){
+
+            Question q = questionService.getRandomQuestion(category,difficulty);
+
+            if(q == null){
+                out.println("No more questions");
+                break;
+            }
+
+            score += askQuestionWithTimer(q,out,in);
+        }
+
+        finishGame(score,out);
+    }
+
+    // ---------------- RANDOM TRIVIA GAME ----------------
+
+    private void startRandomTrivia(PrintWriter out, BufferedReader in) throws IOException {
+
+        out.println("Random Trivia Mode");
 
         out.println("How many questions?");
         int numQuestions;
@@ -216,94 +295,99 @@ public class ClientHandler implements Runnable {
 
         for(int i = 0; i < numQuestions; i++){
 
-            Question q = questionService.getRandomQuestion(category, difficulty);
+            Question q = questionService.getRandomTriviaQuestion();
 
             if(q == null){
-                out.println("No more questions available.");
+                out.println("No questions available.");
                 break;
             }
 
             score += askQuestionWithTimer(q, out, in);
         }
 
-        gameScores.put(currentUser, score);
+        finishGame(score, out);
+    }
+    // ---------------- FINISH GAME ----------------
 
-        out.println("GAME OVER! Your score = " + score);
+    private void finishGame(int score, PrintWriter out){
 
-        scoreService.addScore(currentUser, score);
+        gameScores.put(currentUser,score);
+
+        out.println("GAME OVER!");
+        out.println("Your score = " + score);
+
+        scoreService.addScore(currentUser,score);
 
         showScoreboard(out);
     }
 
-    // SHOW SCOREBOARD
+    // ---------------- SCOREBOARD ----------------
 
     private void showScoreboard(PrintWriter out){
 
         out.println("----- FINAL SCOREBOARD -----");
 
         for(String player : gameScores.keySet()){
-
-            out.println(player + " : " + gameScores.get(player) + " points");
-
+            out.println(player + " : " + gameScores.get(player));
         }
 
         out.println("----------------------------");
     }
 
-    // QUESTION WITH TIMER
+    // ---------------- QUESTION TIMER ----------------
 
-    private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException {
+    private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException{
 
-        AtomicBoolean questionActive = new AtomicBoolean(true);
+        AtomicBoolean active = new AtomicBoolean(true);
 
         out.println("QUESTION: " + q.getText());
 
         char option = 'A';
 
-        for(String choice : q.getChoices()){
-            out.println(option + ") " + choice);
+        for(String c : q.getChoices()){
+            out.println(option + ") " + c);
             option++;
         }
 
-        out.println("You have 15 seconds to answer!");
+        out.println("You have 15 seconds!");
 
         Thread timer = new Thread(() -> {
 
-            try {
+            try{
 
                 Thread.sleep(5000);
-                if(questionActive.get()) out.println("10 seconds left");
+                if(active.get()) out.println("10 seconds left");
 
                 Thread.sleep(5000);
-                if(questionActive.get()) out.println("5 seconds left");
+                if(active.get()) out.println("5 seconds left");
 
                 Thread.sleep(5000);
 
-                if(questionActive.get()){
+                if(active.get()){
                     out.println("TIME UP!");
-                    questionActive.set(false);
+                    active.set(false);
                 }
 
-            } catch (InterruptedException ignored) {}
+            }catch(Exception ignored){}
         });
 
         timer.start();
 
         String answer = in.readLine();
 
-        if(!questionActive.get()){
-            out.println("Answer ignored (time finished)");
+        if(!active.get()){
+            out.println("Answer ignored");
             return 0;
         }
 
-        questionActive.set(false);
+        active.set(false);
 
         if(answer == null) return 0;
 
         answer = answer.trim();
 
         if(!answer.matches("[A-Da-d]")){
-            out.println("INVALID ANSWER. Use A/B/C/D");
+            out.println("INVALID ANSWER");
             return 0;
         }
 
@@ -314,7 +398,9 @@ public class ClientHandler implements Runnable {
 
         }else{
 
-            out.println("WRONG! Correct answer: " + q.getCorrectAnswer());
+            out.println("WRONG!");
+            out.println("Correct answer: " + q.getCorrectAnswer());
+
             return 0;
         }
     }

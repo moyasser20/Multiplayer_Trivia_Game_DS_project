@@ -18,6 +18,8 @@ public class QuestionService {
         this.questions = repository.findAll();
     }
 
+    // Normal question (category + difficulty)
+
     public Question getRandomQuestion(String category, String difficulty) {
 
         List<Question> filtered = questions.stream()
@@ -34,4 +36,16 @@ public class QuestionService {
         return filtered.get(rand.nextInt(filtered.size()));
     }
 
+    // ---------------- RANDOM TRIVIA ----------------
+
+    public Question getRandomTriviaQuestion(){
+
+        if(questions.isEmpty()){
+            return null;
+        }
+
+        Random rand = new Random();
+
+        return questions.get(rand.nextInt(questions.size()));
+    }
 }

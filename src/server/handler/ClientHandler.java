@@ -5,10 +5,14 @@ import server.model.Score;
 import server.service.AuthService;
 import server.service.QuestionService;
 import server.service.ScoreService;
+import server.game.Team;
+import server.game.GameRoom;
+import server.game.GameConfig;
 
 import java.io.*;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientHandler implements Runnable {
@@ -22,24 +26,24 @@ public class ClientHandler implements Runnable {
     private String currentUser;
 
     private boolean singlePlayerMenu = false;
-
-    // Admin
     private boolean isAdmin = false;
+
     private static int totalQuestionsPlayed = 0;
     private static int highestScoreEver = 0;
+    private static Map<String,Integer> gameScores = new ConcurrentHashMap<>();
+    /** Logged-in users (connected). Added on LOGIN_SUCCESS, removed on disconnect. */
+    private static Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
 
-    // Teams
-    private static List<String> teamA = new ArrayList<>();
-    private static List<String> teamB = new ArrayList<>();
+    // Public rooms (min/max loaded from config)
+    private static final GameConfig gameConfig = new GameConfig("src/data/config.txt");
+    private static List<GameRoom> publicRooms = new ArrayList<>();
 
-    // Game scores
-    private static Map<String,Integer> gameScores = new HashMap<>();
+    private GameRoom myPublicRoom = null;
 
     public ClientHandler(Socket socket,
                          AuthService authService,
                          QuestionService questionService,
                          ScoreService scoreService){
-
         this.socket = socket;
         this.authService = authService;
         this.questionService = questionService;
@@ -48,19 +52,15 @@ public class ClientHandler implements Runnable {
 
     @Override
     public void run(){
-
+        BufferedReader in = null;
+        PrintWriter out = null;
         try{
-
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
-
-            PrintWriter out = new PrintWriter(
-                    socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(socket.getOutputStream(), true);
 
             out.println("WELCOME TO TRIVIA SERVER");
 
             String request;
-
             while((request = in.readLine()) != null){
 
                 if(request.equalsIgnoreCase("QUIT")){
@@ -70,41 +70,22 @@ public class ClientHandler implements Runnable {
 
                 String[] parts = request.split(" ");
 
-                // ---------------- REGISTER ----------------
                 if(parts[0].equalsIgnoreCase("REGISTER")){
-
-                    if(parts.length < 4){
-                        out.println("INVALID_REGISTER_FORMAT");
-                        continue;
-                    }
-
-                    String name = parts[1];
-                    String username = parts[2];
-                    String password = parts[3];
-
+                    if(parts.length < 4){ out.println("INVALID_REGISTER_FORMAT"); continue; }
+                    String name = parts[1], username = parts[2], password = parts[3];
                     out.println(authService.register(name,username,password));
                 }
 
-                // ---------------- LOGIN ----------------
                 else if(parts[0].equalsIgnoreCase("LOGIN")){
-
-                    if(parts.length < 3){
-                        out.println("INVALID_LOGIN_FORMAT");
-                        continue;
-                    }
-
-                    String username = parts[1];
-                    String password = parts[2];
-
+                    if(parts.length < 3){ out.println("INVALID_LOGIN_FORMAT"); continue; }
+                    String username = parts[1], password = parts[2];
                     String result = authService.login(username,password);
-
                     out.println(result);
 
                     if(result.equals("LOGIN_SUCCESS")){
-
                         loggedIn = true;
                         currentUser = username;
-
+                        connectedUsers.add(username);
                         if(username.equalsIgnoreCase("admin")){
                             isAdmin = true;
                             showAdminPanel(out);
@@ -118,163 +99,155 @@ public class ClientHandler implements Runnable {
                     }
                 }
 
-                // ---------------- ADMIN COMMANDS ----------------
                 else if(isAdmin){
-
-                    switch(request){
-
-                        case "1":
-                            out.println("Total players connected: " + gameScores.size());
-                            break;
-
-                        case "2":
-                            List<String> topPlayers = getTopPlayers();
-                            int topScore = topPlayers.isEmpty() ? 0 : gameScores.get(topPlayers.get(0));
-
-                            out.println("Top player(s) with score " + topScore + ":");
-                            for(String p : topPlayers){
-                                out.println(p);
-                            }
-                            break;
-
-                        case "3":
-                            out.println("Total questions played: " + totalQuestionsPlayed);
-                            break;
-
-                        case "4":
-                            out.println("Highest score ever: " + highestScoreEver);
-                            break;
-
-                        case "5":
-                            out.println("GOODBYE ADMIN");
-                            socket.close();
-                            return;
-
-                        default:
-                            out.println("INVALID_ADMIN_COMMAND");
-                    }
+                    handleAdminCommands(request,out);
                 }
 
-                // ---------------- SINGLE PLAYER MENU ----------------
                 else if(loggedIn && request.equals("1") && !singlePlayerMenu){
-
                     singlePlayerMenu = true;
                     out.println("SINGLE PLAYER OPTIONS:");
                     out.println("1) Custom Trivia");
                     out.println("2) Random Trivia");
                 }
 
-                // ---------------- CUSTOM TRIVIA ----------------
                 else if(loggedIn && singlePlayerMenu && request.equals("1")){
-
                     singlePlayerMenu = false;
                     out.println("Custom Trivia Mode");
                     startSinglePlayer(out,in);
                 }
 
-                // ---------------- RANDOM TRIVIA ----------------
                 else if(loggedIn && singlePlayerMenu && request.equals("2")){
-
                     singlePlayerMenu = false;
                     startRandomTrivia(out,in);
                 }
 
-                // ---------------- MULTIPLAYER ----------------
                 else if(loggedIn && request.equals("2")){
-
                     out.println("MULTIPLAYER OPTIONS:");
-                    out.println("JOIN_TEAM_A");
-                    out.println("JOIN_TEAM_B");
-                    out.println("START_GAME");
+                    out.println("JOIN_PUBLIC_ROOM");
+                    out.println("START_PUBLIC_GAME");
                 }
 
-                // ---------------- JOIN TEAM A ----------------
-                else if(loggedIn && request.equalsIgnoreCase("JOIN_TEAM_A")){
-
-                    if(!teamA.contains(currentUser)){
-                        teamA.add(currentUser);
-                    }
-
-                    out.println("Joined Team Alpha");
-                    out.println("Team Alpha size: " + teamA.size());
+                else if(loggedIn && request.equalsIgnoreCase("JOIN_PUBLIC_ROOM")){
+                    joinPublicRoom(out,in);
                 }
 
-                // ---------------- JOIN TEAM B ----------------
-                else if(loggedIn && request.equalsIgnoreCase("JOIN_TEAM_B")){
-
-                    if(!teamB.contains(currentUser)){
-                        teamB.add(currentUser);
-                    }
-
-                    out.println("Joined Team Beta");
-                    out.println("Team Beta size: " + teamB.size());
+                else if(loggedIn && request.equalsIgnoreCase("START_PUBLIC_GAME")){
+                    startPublicGame(out);
                 }
 
-                // ---------------- START MULTIPLAYER GAME ----------------
-                else if(loggedIn && request.equalsIgnoreCase("START_GAME")){
-
-                    if(teamA.size() == 0 || teamB.size() == 0){
-                        out.println("Both teams must have players");
-                        continue;
-                    }
-
-                    if(teamA.size() != teamB.size()){
-                        out.println("Teams must have equal players");
-                        continue;
-                    }
-
-                    out.println("GAME STARTED!");
-                    startMultiplayerGame(out,in);
-                }
-
-                // ---------------- SCORE HISTORY ----------------
                 else if(loggedIn && request.equals("3")){
-
-                    out.println("YOUR SCORE HISTORY:");
                     List<Score> history = scoreService.getUserScores(currentUser);
-
-                    if(history.isEmpty()){
-                        out.println("No previous scores");
-                    }
-
-                    for(Score s : history){
-                        out.println("Score: " + s.getScore());
-                    }
+                    out.println("YOUR SCORE HISTORY:");
+                    if(history.isEmpty()) out.println("No previous scores");
+                    for(Score s : history) out.println("Score: " + s.getScore());
                 }
 
-                // ---------------- QUIT ----------------
                 else if(loggedIn && request.equals("4")){
-                    out.println("GOODBYE");
-                    break;
+                    out.println("GOODBYE"); break;
                 }
 
-                else{
-                    out.println("UNKNOWN_COMMAND");
+                // During public game, A-D are answers (single reader: only ClientHandler reads input)
+                else if(loggedIn && myPublicRoom != null && myPublicRoom.isStarted()
+                        && myPublicRoom.isAcceptingAnswers()
+                        && request != null && request.trim().matches("(?i)[A-D]")){
+                    String ans = request.trim().toUpperCase();
+                    myPublicRoom.submitAnswer(currentUser, ans);
+                    out.println("Answer recorded: " + ans);
+                    continue;
                 }
+
+                else out.println("UNKNOWN_COMMAND");
             }
-
-            socket.close();
 
         }catch(Exception e){
             System.out.println("Client disconnected");
+        }finally{
+            if(loggedIn && currentUser != null){
+                connectedUsers.remove(currentUser);
+            }
+            try{ if(socket != null && !socket.isClosed()) socket.close(); }catch(IOException ignored){}
         }
     }
 
-    // ---------------- HELPER METHODS ----------------
+    private void joinPublicRoom(PrintWriter out, BufferedReader in){
+        if (myPublicRoom != null && !myPublicRoom.isStarted()) {
+            out.println("You are already in a public room. Wait for the game to start or disconnect.");
+            return;
+        }
+        if (myPublicRoom != null && myPublicRoom.isStarted()) {
+            out.println("You are already in an active game.");
+            return;
+        }
+
+        GameRoom room = null;
+        for(GameRoom r : publicRooms){
+            if(!r.isFull() && !r.isStarted()){ room = r; break; }
+        }
+
+        if(room == null){
+            Team teamA = new Team("Alpha");
+            Team teamB = new Team("Beta");
+            room = new GameRoom(teamA, teamB, questionService,
+                    gameConfig.getMinRoomPlayers(), gameConfig.getMaxRoomPlayers());
+            publicRooms.add(room);
+        }
+
+        // Balance: add to the smaller team
+        if(room.getTeamA().size() <= room.getTeamB().size()){
+            room.getTeamA().addPlayer(currentUser, out);
+            out.println("Joined Team Alpha in public room (" + room.totalPlayers() + "/" + gameConfig.getMaxRoomPlayers() + " players)");
+        } else {
+            room.getTeamB().addPlayer(currentUser, out);
+            out.println("Joined Team Beta in public room (" + room.totalPlayers() + "/" + gameConfig.getMaxRoomPlayers() + " players)");
+        }
+        myPublicRoom = room;
+    }
+
+    private void startPublicGame(PrintWriter out){
+        for(GameRoom room : publicRooms){
+            if(room.isReady() && !room.isStarted()){
+                new Thread(() -> {
+                    try{
+                        room.startGame(5);
+                    } catch(Exception e){
+                        System.err.println("Public game error: " + e.getMessage());
+                    }
+                }).start();
+                out.println("Public Game Started!");
+                return;
+            }
+        }
+        out.println("No ready public room. Need at least " + gameConfig.getMinRoomPlayers()
+                + " players (at least one on each team). Join with JOIN_PUBLIC_ROOM.");
+    }
+
+    private void handleAdminCommands(String request, PrintWriter out){
+        switch(request){
+            case "1": out.println("Total players connected (logged in): " + connectedUsers.size()); break;
+            case "2":
+                List<String> topPlayers = getTopPlayers();
+                if (topPlayers.isEmpty()) {
+                    out.println("No players have completed a single-player game yet.");
+                } else {
+                    int topScore = gameScores.get(topPlayers.get(0));
+                    out.println("Top player(s) with score " + topScore + ":");
+                    for(String p : topPlayers) out.println(p);
+                }
+                break;
+            case "3": out.println("Total questions played: " + totalQuestionsPlayed); break;
+            case "4": out.println("Highest score ever: " + highestScoreEver); break;
+            case "5": out.println("GOODBYE ADMIN"); try{socket.close();}catch(Exception ignored){} break;
+            default: out.println("INVALID_ADMIN_COMMAND");
+        }
+    }
 
     private List<String> getTopPlayers(){
         List<String> topPlayers = new ArrayList<>();
         int maxScore = 0;
-
         for(String player : gameScores.keySet()){
             int s = gameScores.get(player);
-            if(s > maxScore){
-                maxScore = s;
-                topPlayers.clear();
-                topPlayers.add(player);
-            }else if(s == maxScore){
-                topPlayers.add(player);
-            }
+            if(s > maxScore){ maxScore = s; topPlayers.clear(); topPlayers.add(player);}
+            else if(s == maxScore) topPlayers.add(player);
         }
         return topPlayers;
     }
@@ -290,180 +263,78 @@ public class ClientHandler implements Runnable {
 
     private void finishGame(int score, PrintWriter out){
         gameScores.put(currentUser,score);
-
-        if(score > highestScoreEver){
-            highestScoreEver = score;
-        }
-
-        out.println("GAME OVER!");
-        out.println("Your score = " + score);
-
+        if(score > highestScoreEver) highestScoreEver = score;
+        out.println("GAME OVER! Your score = " + score);
         scoreService.addScore(currentUser,score);
-        showScoreboard(out);
     }
 
-    private void showScoreboard(PrintWriter out){
-        out.println("----- FINAL SCOREBOARD -----");
-        for(String player : gameScores.keySet()){
-            out.println(player + " : " + gameScores.get(player));
-        }
-        out.println("----------------------------");
+    private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException{
+        totalQuestionsPlayed++;
+        AtomicBoolean active = new AtomicBoolean(true);
+        out.println("QUESTION: " + q.getText());
+        char option = 'A';
+        for(String c : q.getChoices()){ out.println(option + ") " + c); option++; }
+        out.println("You have 15 seconds!");
+        Thread timer = new Thread(() -> {
+            try{ Thread.sleep(5000); if(active.get()) out.println("10 seconds left");
+                Thread.sleep(5000); if(active.get()) out.println("5 seconds left");
+                Thread.sleep(5000); if(active.get()){ out.println("TIME UP!"); active.set(false);} }catch(Exception ignored){}
+        });
+        timer.start();
+        String answer = in.readLine();
+        if(!active.get()){ out.println("Answer ignored"); return 0; }
+        active.set(false);
+        if(answer == null) return 0;
+        answer = answer.trim();
+        if(!answer.matches("[A-Da-d]")){ out.println("INVALID ANSWER"); return 0; }
+        if(answer.equalsIgnoreCase(q.getCorrectAnswer())){ out.println("CORRECT!"); return 10; }
+        else{ out.println("WRONG! Correct answer: " + q.getCorrectAnswer()); return 0; }
     }
 
-    // ---------------- SINGLE PLAYER ----------------
     private void startSinglePlayer(PrintWriter out, BufferedReader in) throws IOException{
-
         out.println("Enter category (Math / Science / Geography):");
-        String category = in.readLine();
-
+        String category = normalizeCategory(in.readLine());
         out.println("Enter difficulty (easy / medium / hard):");
-        String difficulty = in.readLine();
-
+        String difficulty = normalizeDifficulty(in.readLine());
         out.println("How many questions?");
         int numQuestions;
-        try{
-            numQuestions = Integer.parseInt(in.readLine());
-        }catch(Exception e){
-            numQuestions = 5;
-        }
-
+        try{ numQuestions = Integer.parseInt(in.readLine());}catch(Exception e){numQuestions = 5;}
         int score = 0;
         for(int i=0;i<numQuestions;i++){
             Question q = questionService.getRandomQuestion(category,difficulty);
-            if(q == null){
-                out.println("No more questions");
-                break;
-            }
+            if(q == null){ out.println("No more questions for " + category + " / " + difficulty + ". Try easy/medium/hard."); break;}
             score += askQuestionWithTimer(q,out,in);
         }
-
         finishGame(score,out);
     }
 
-    // ---------------- RANDOM TRIVIA ----------------
-    private void startRandomTrivia(PrintWriter out, BufferedReader in) throws IOException {
+    private String normalizeCategory(String input){
+        if(input == null || input.trim().isEmpty()) return "Math";
+        String s = input.trim();
+        if(s.equalsIgnoreCase("math")) return "Math";
+        if(s.equalsIgnoreCase("science")) return "Science";
+        if(s.equalsIgnoreCase("geography")) return "Geography";
+        return s;
+    }
 
+    private String normalizeDifficulty(String input){
+        if(input == null || input.trim().isEmpty()) return "easy";
+        String s = input.trim().toLowerCase();
+        if(s.equals("easy") || s.equals("medium") || s.equals("hard")) return s;
+        return "easy";
+    }
+
+    private void startRandomTrivia(PrintWriter out, BufferedReader in) throws IOException{
         out.println("Random Trivia Mode");
-
         out.println("How many questions?");
         int numQuestions;
-        try{
-            numQuestions = Integer.parseInt(in.readLine());
-        }catch(Exception e){
-            numQuestions = 5;
-        }
-
+        try{ numQuestions = Integer.parseInt(in.readLine());}catch(Exception e){numQuestions = 5;}
         int score = 0;
         for(int i=0;i<numQuestions;i++){
             Question q = questionService.getRandomTriviaQuestion();
-            if(q == null){
-                out.println("No questions available.");
-                break;
-            }
+            if(q == null){ out.println("No questions available."); break;}
             score += askQuestionWithTimer(q,out,in);
         }
-
         finishGame(score,out);
-    }
-
-    // ---------------- MULTIPLAYER GAME ----------------
-    private void startMultiplayerGame(PrintWriter out, BufferedReader in) throws IOException {
-
-        // Each player answers same number of questions in sequence
-        int numQuestions = 5; // default for multiplayer
-        Map<String,Integer> teamScores = new HashMap<>();
-
-        for(String player : teamA){
-            currentUser = player;
-            int score = 0;
-            for(int i=0;i<numQuestions;i++){
-                Question q = questionService.getRandomTriviaQuestion();
-                if(q == null) break;
-                score += askQuestionWithTimer(q,out,in);
-            }
-            gameScores.put(player, score);
-            teamScores.put(player, score);
-            if(score > highestScoreEver) highestScoreEver = score;
-        }
-
-        for(String player : teamB){
-            currentUser = player;
-            int score = 0;
-            for(int i=0;i<numQuestions;i++){
-                Question q = questionService.getRandomTriviaQuestion();
-                if(q == null) break;
-                score += askQuestionWithTimer(q,out,in);
-            }
-            gameScores.put(player, score);
-            teamScores.put(player, score);
-            if(score > highestScoreEver) highestScoreEver = score;
-        }
-
-        showScoreboard(out);
-
-        // Clear teams after game
-        teamA.clear();
-        teamB.clear();
-    }
-
-    // ---------------- QUESTION TIMER ----------------
-    private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException{
-
-        totalQuestionsPlayed++;
-
-        AtomicBoolean active = new AtomicBoolean(true);
-
-        out.println("QUESTION: " + q.getText());
-
-        char option = 'A';
-        for(String c : q.getChoices()){
-            out.println(option + ") " + c);
-            option++;
-        }
-
-        out.println("You have 15 seconds!");
-
-        Thread timer = new Thread(() -> {
-            try{
-                Thread.sleep(5000);
-                if(active.get()) out.println("10 seconds left");
-                Thread.sleep(5000);
-                if(active.get()) out.println("5 seconds left");
-                Thread.sleep(5000);
-                if(active.get()){
-                    out.println("TIME UP!");
-                    active.set(false);
-                }
-            }catch(Exception ignored){}
-        });
-
-        timer.start();
-
-        String answer = in.readLine();
-
-        if(!active.get()){
-            out.println("Answer ignored");
-            return 0;
-        }
-
-        active.set(false);
-
-        if(answer == null) return 0;
-
-        answer = answer.trim();
-
-        if(!answer.matches("[A-Da-d]")){
-            out.println("INVALID ANSWER");
-            return 0;
-        }
-
-        if(answer.equalsIgnoreCase(q.getCorrectAnswer())){
-            out.println("CORRECT!");
-            return 10;
-        }else{
-            out.println("WRONG!");
-            out.println("Correct answer: " + q.getCorrectAnswer());
-            return 0;
-        }
     }
 }

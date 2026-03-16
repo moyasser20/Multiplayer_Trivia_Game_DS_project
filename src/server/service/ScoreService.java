@@ -7,21 +7,21 @@ import java.util.List;
 
 public class ScoreService {
 
-    private ScoreRepository scoreRepository;
+    private final ScoreRepository repo;
 
-    public ScoreService(ScoreRepository scoreRepository) {
-        this.scoreRepository = scoreRepository;
+    public ScoreService(ScoreRepository repo){
+        this.repo = repo;
     }
 
-    public void addScore(String username, int score){
-
-        Score newScore = new Score(username, score);
-
-        scoreRepository.saveScore(newScore);
+    public void addScore(String username,int score){
+        repo.saveScore(new Score(username,score));
     }
 
-    public List<Score> getAllScores(){
-        return scoreRepository.getScores();
+    public List<Score> getUserScores(String username){
+        // filter scores for the given user, since ScoreRepository
+        // does not expose a user-specific method
+        return repo.getScores().stream()
+                .filter(s -> s.getUsername().equals(username))
+                .toList();
     }
-
 }

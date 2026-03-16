@@ -1,14 +1,14 @@
 package server.handler;
 
 import server.model.Question;
+import server.model.Score;
 import server.service.AuthService;
 import server.service.QuestionService;
 import server.service.ScoreService;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientHandler implements Runnable {
@@ -24,6 +24,9 @@ public class ClientHandler implements Runnable {
     // Teams
     private static List<String> teamA = new ArrayList<>();
     private static List<String> teamB = new ArrayList<>();
+
+    // Game scores
+    private static Map<String, Integer> gameScores = new HashMap<>();
 
     public ClientHandler(Socket socket,
                          AuthService authService,
@@ -57,8 +60,7 @@ public class ClientHandler implements Runnable {
 
                 String[] parts = request.split(" ");
 
-                // ---------------- REGISTER ----------------
-
+                // REGISTER
                 if(parts[0].equalsIgnoreCase("REGISTER")){
 
                     if(parts.length < 4){
@@ -73,8 +75,7 @@ public class ClientHandler implements Runnable {
                     out.println(authService.register(name, username, password));
                 }
 
-                // ---------------- LOGIN ----------------
-
+                // LOGIN
                 else if(parts[0].equalsIgnoreCase("LOGIN")){
 
                     if(parts.length < 3){
@@ -97,12 +98,12 @@ public class ClientHandler implements Runnable {
                         out.println("MENU:");
                         out.println("1) Single Player");
                         out.println("2) Multiplayer");
-                        out.println("3) Quit");
+                        out.println("3) Score History");
+                        out.println("4) Quit");
                     }
                 }
 
-                // ---------------- SINGLE PLAYER ----------------
-
+                // SINGLE PLAYER
                 else if(loggedIn && parts[0].equals("1")){
 
                     out.println("Single Player Mode Activated");
@@ -110,8 +111,7 @@ public class ClientHandler implements Runnable {
                     startSinglePlayer(out, in);
                 }
 
-                // ---------------- MULTIPLAYER MENU ----------------
-
+                // MULTIPLAYER MENU
                 else if(loggedIn && parts[0].equals("2")){
 
                     out.println("MULTIPLAYER OPTIONS:");
@@ -120,8 +120,19 @@ public class ClientHandler implements Runnable {
                     out.println("START_GAME");
                 }
 
-                // ---------------- JOIN TEAM A ----------------
+                // SCORE HISTORY
+                else if(loggedIn && parts[0].equals("3")){
 
+                    out.println("Your Score History:");
+
+                    List<Score> history = scoreService.getUserScores(currentUser);
+
+                    for(Score s : history){
+                        out.println(s.getScore());
+                    }
+                }
+
+                // JOIN TEAM A
                 else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_A")){
 
                     if(!teamA.contains(currentUser)){
@@ -129,11 +140,9 @@ public class ClientHandler implements Runnable {
                     }
 
                     out.println("Joined Team Alpha");
-                    out.println("Team Alpha players: " + teamA.size());
                 }
 
-                // ---------------- JOIN TEAM B ----------------
-
+                // JOIN TEAM B
                 else if(loggedIn && parts[0].equalsIgnoreCase("JOIN_TEAM_B")){
 
                     if(!teamB.contains(currentUser)){
@@ -141,11 +150,9 @@ public class ClientHandler implements Runnable {
                     }
 
                     out.println("Joined Team Beta");
-                    out.println("Team Beta players: " + teamB.size());
                 }
 
-                // ---------------- START MULTIPLAYER GAME ----------------
-
+                // START GAME
                 else if(loggedIn && parts[0].equalsIgnoreCase("START_GAME")){
 
                     if(teamA.size() == 0 || teamB.size() == 0){
@@ -162,13 +169,11 @@ public class ClientHandler implements Runnable {
                     out.println("Team Alpha: " + teamA);
                     out.println("Team Beta: " + teamB);
 
-                    // For now use same single player engine
                     startSinglePlayer(out, in);
                 }
 
-                // ---------------- QUIT ----------------
-
-                else if(loggedIn && parts[0].equals("3")){
+                // QUIT
+                else if(loggedIn && parts[0].equals("4")){
 
                     out.println("GOODBYE");
                     break;
@@ -187,7 +192,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // ---------------- SINGLE PLAYER GAME ----------------
+    // SINGLE PLAYER GAME
 
     private void startSinglePlayer(PrintWriter out, BufferedReader in) throws IOException {
 
@@ -221,12 +226,31 @@ public class ClientHandler implements Runnable {
             score += askQuestionWithTimer(q, out, in);
         }
 
+        gameScores.put(currentUser, score);
+
         out.println("GAME OVER! Your score = " + score);
 
         scoreService.addScore(currentUser, score);
+
+        showScoreboard(out);
     }
 
-    // ---------------- QUESTION WITH TIMER ----------------
+    // SHOW SCOREBOARD
+
+    private void showScoreboard(PrintWriter out){
+
+        out.println("----- FINAL SCOREBOARD -----");
+
+        for(String player : gameScores.keySet()){
+
+            out.println(player + " : " + gameScores.get(player) + " points");
+
+        }
+
+        out.println("----------------------------");
+    }
+
+    // QUESTION WITH TIMER
 
     private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException {
 
@@ -277,6 +301,11 @@ public class ClientHandler implements Runnable {
         if(answer == null) return 0;
 
         answer = answer.trim();
+
+        if(!answer.matches("[A-Da-d]")){
+            out.println("INVALID ANSWER. Use A/B/C/D");
+            return 0;
+        }
 
         if(answer.equalsIgnoreCase(q.getCorrectAnswer())){
 

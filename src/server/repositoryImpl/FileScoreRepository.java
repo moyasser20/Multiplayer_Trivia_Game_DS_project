@@ -34,8 +34,24 @@ public class FileScoreRepository implements ScoreRepository {
         }
     }
 
+    // get all scores
     public List<Score> getScores(){
         return scores;
+    }
+
+    // get scores for specific user (THIS IS NEW)
+    public List<Score> getScoresByUser(String username){
+
+        List<Score> userScores = new ArrayList<>();
+
+        for(Score s : scores){
+
+            if(s.getUsername().equals(username)){
+                userScores.add(s);
+            }
+        }
+
+        return userScores;
     }
 
     public void saveScore(Score score){

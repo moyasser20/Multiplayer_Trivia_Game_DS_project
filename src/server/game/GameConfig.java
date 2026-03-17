@@ -1,13 +1,7 @@
 package server.game;
-
-import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
-/**
- * Loads game config from file (e.g. min/max room players).
- * Used at server runtime; values are read once.
- */
 public class GameConfig {
 
     private final int minRoomPlayers;

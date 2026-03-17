@@ -4,3 +4,31 @@ Capital of France?|Geography|easy|London;Paris;Berlin;Rome|B
 Capital of Egypt?|Geography|easy|Cairo;Giza;Alexandria;Luxor|A
 What planet is known as Red Planet?|Science|easy|Earth;Mars;Venus;Jupiter|B
 What gas do plants absorb?|Science|easy|Oxygen;Nitrogen;Carbon Dioxide;Helium|C
+What is 10/2?|Math|easy|2;5;10;20|B
+What is 9-3?|Math|easy|3;5;6;9|C
+What is 7+8?|Math|easy|12;13;14;15|D
+What is 3*7?|Math|easy|9;18;21;24|C
+What is 12-5?|Math|easy|5;6;7;8|C
+What is the square root of 81?|Math|medium|7;8;9;10|C
+What is 15*3?|Math|medium|35;40;45;50|C
+What is 100-37?|Math|medium|53;63;73;83|B
+What is 14^2?|Math|hard|96;168;196;214|C
+What is the value of pi (approx)?|Math|hard|2.14;3.14;4.13;3.41|B
+
+What is H2O commonly known as?|Science|easy|Salt;Water;Oxygen;Hydrogen|B
+What organ pumps blood in the body?|Science|easy|Brain;Lungs;Heart;Liver|C
+Which gas do humans breathe in?|Science|easy|Carbon Dioxide;Oxygen;Hydrogen;Nitrogen|B
+What is the boiling point of water (C)?|Science|medium|50;75;100;150|C
+Which planet has rings?|Science|medium|Mars;Saturn;Mercury;Earth|B
+What part of the plant does photosynthesis occur?|Science|medium|Roots;Stem;Leaves;Flowers|C
+What is the chemical symbol for gold?|Science|hard|Ag;Au;Gd;Go|B
+What is the powerhouse of the cell?|Science|hard|Nucleus;Mitochondria;Ribosome;Membrane|B
+
+Largest ocean on Earth?|Geography|easy|Atlantic;Pacific;Indian;Arctic|B
+Which continent is Egypt in?|Geography|easy|Asia;Europe;Africa;South America|C
+Capital of Italy?|Geography|easy|Milan;Rome;Venice;Naples|B
+Capital of Japan?|Geography|easy|Beijing;Seoul;Tokyo;Bangkok|C
+Which country is known for the Eiffel Tower?|Geography|easy|Spain;France;Germany;Brazil|B
+Capital of Canada?|Geography|medium|Toronto;Ottawa;Vancouver;Montreal|B
+Which river is the longest in the world?|Geography|hard|Nile;Amazon;Yangtze;Danube|B
+Mount Everest is in which mountain range?|Geography|hard|Andes;Alps;Himalayas;Rockies|C

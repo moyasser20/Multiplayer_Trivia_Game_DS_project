@@ -34,7 +34,7 @@ public class ClientHandler implements Runnable {
     /** Logged-in users (connected). Added on LOGIN_SUCCESS, removed on disconnect. */
     private static Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
 
-    // Public rooms (min/max loaded from config)
+    // Public rooms (min/max + lookup config loaded from config)
     private static final GameConfig gameConfig = new GameConfig("src/data/config.txt");
     private static List<GameRoom> publicRooms = new ArrayList<>();
 

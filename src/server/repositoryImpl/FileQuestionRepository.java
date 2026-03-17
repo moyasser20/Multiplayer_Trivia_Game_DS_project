@@ -25,7 +25,19 @@ public class FileQuestionRepository implements QuestionRepository {
 
             while ((line = reader.readLine()) != null) {
 
+                line = line.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+
                 String[] parts = line.split("\\|");
+
+                // Expected format:
+                // text|category|difficulty|choice1;choice2;choice3;choice4|correctLetter
+                if (parts.length < 5) {
+                    // skip malformed line instead of crashing the server
+                    continue;
+                }
 
                 String text = parts[0];
                 String category = parts[1];

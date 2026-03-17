@@ -77,12 +77,16 @@ public class GameRoom {
         broadcast("Team " + teamA.getTeamName() + ": " + teamA.size() + " players");
         broadcast("Team " + teamB.getTeamName() + ": " + teamB.size() + " players");
 
-        for (int i = 0; i < numQuestions; i++) {
-            Question q = questionService.getRandomTriviaQuestion();
-            if (q == null) {
-                broadcast("No questions available.");
-                break;
-            }
+        // Fetch a per-game batch so each game has its own questions.
+        // Category/difficulty are currently mixed; you can change to specific ones later.
+        java.util.List<Question> questions = questionService.getBatch("*", "*", numQuestions);
+        if (questions.isEmpty()) {
+            broadcast("No questions available.");
+            return;
+        }
+
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
 
             currentAnswers.clear();
             acceptingAnswers.set(true);

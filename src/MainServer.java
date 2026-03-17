@@ -8,6 +8,7 @@ import server.repositoryImpl.FileQuestionRepository;
 import server.service.AuthService;
 import server.service.QuestionService;
 import server.service.ScoreService;
+import server.game.GameConfig;
 
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -16,17 +17,23 @@ public class MainServer {
 
     public static void main(String[] args) throws Exception {
 
-        ServerSocket serverSocket = new ServerSocket(5000);
+        GameConfig config = new GameConfig("src/data/config.txt");
+
+        ServerSocket serverSocket = new ServerSocket(config.getGamePort());
 
         UserRepository userRepo = new FileUserRepository("src/data/users.txt");
         QuestionRepository questionRepo = new FileQuestionRepository("src/data/questions.txt");
         ScoreRepository scoreRepo = new FileScoreRepository("src/data/scores.txt");
 
         AuthService authService = new AuthService(userRepo);
-        QuestionService questionService = new QuestionService(questionRepo);
+        QuestionService questionService = new QuestionService(
+                questionRepo,
+                config.getLookupHost(),
+                config.getLookupPort()
+        );
         ScoreService scoreService = new ScoreService(scoreRepo);
 
-        System.out.println("Trivia Server started on port 5000...");
+        System.out.println("Trivia Server started on port " + config.getGamePort() + "...");
 
         while (true) {
 

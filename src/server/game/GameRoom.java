@@ -96,6 +96,8 @@ public class GameRoom {
 
         for (int i = 0; i < questions.size(); i++) {
             Question q = questions.get(i);
+            // multiplayer question
+            ClientHandler.incrementMultiQuestionPlayed();
 
             currentAnswers.clear();
             acceptingAnswers.set(true);
@@ -138,7 +140,9 @@ public class GameRoom {
         broadcast(teamA.getTeamName() + " score: " + teamA.getScore());
         broadcast(teamB.getTeamName() + " score: " + teamB.getScore());
 
-        // determine wins for teams
+        // determine wins for teams and update multiplayer highest score
+        int gameHigh = Math.max(teamA.getScore(), teamB.getScore());
+        ClientHandler.updateMultiHighestScore(gameHigh);
         if (teamA.getScore() > teamB.getScore()) {
             for (String u : teamA.getPlayers()) {
                 ClientHandler.registerWin(u);

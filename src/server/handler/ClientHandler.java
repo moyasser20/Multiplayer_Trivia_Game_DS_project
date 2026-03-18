@@ -28,8 +28,13 @@ public class ClientHandler implements Runnable {
     private boolean singlePlayerMenu = false;
     private boolean isAdmin = false;
 
-    private static int totalQuestionsPlayed = 0;
-    private static int highestScoreEver = 0;
+    // aggregated stats
+    private static int totalQuestionsPlayed = 0;          // single + multiplayer
+    private static int singleQuestionsPlayed = 0;
+    private static int multiQuestionsPlayed = 0;
+    private static int highestScoreEver = 0;              // max of single/multi
+    private static int singleHighestScoreEver = 0;
+    private static int multiHighestScoreEver = 0;
     private static Map<String,Integer> gameScores = new ConcurrentHashMap<>();
     // total wins per user (single or multiplayer)
     private static Map<String,Integer> wins = new ConcurrentHashMap<>();
@@ -310,8 +315,33 @@ public class ClientHandler implements Runnable {
                     }
                 }
                 break;
-            case "3": out.println("Total questions played: " + totalQuestionsPlayed); break;
-            case "4": out.println("Highest score ever: " + highestScoreEver); break;
+            case "3":
+                out.println("Total questions played (all): " + totalQuestionsPlayed);
+                out.println("  Single-player questions:    " + singleQuestionsPlayed);
+                out.println("  Multiplayer questions:      " + multiQuestionsPlayed);
+                break;
+            case "4":
+                out.println("Highest score ever (all): " + highestScoreEver);
+                out.println("  Single-player highest:  " + singleHighestScoreEver);
+                out.println("  Multiplayer highest:    " + multiHighestScoreEver);
+
+                // players with highest score ever (single or multi)
+                if (gameScores.isEmpty()) {
+                    out.println("No players have recorded scores yet.");
+                } else {
+                    List<String> topPlayers = new ArrayList<>();
+                    int maxScore = highestScoreEver;
+                    for (Map.Entry<String,Integer> e : gameScores.entrySet()) {
+                        if (e.getValue() == maxScore) {
+                            topPlayers.add(e.getKey());
+                        }
+                    }
+                    out.println("Player(s) with highest score " + maxScore + ":");
+                    for (String p : topPlayers) {
+                        out.println("  " + p);
+                    }
+                }
+                break;
             case "5": out.println("GOODBYE ADMIN"); try{socket.close();}catch(Exception ignored){} break;
             default: out.println("INVALID_ADMIN_COMMAND");
         }
@@ -321,6 +351,18 @@ public class ClientHandler implements Runnable {
     public static void registerWin(String username){
         if (username == null) return;
         wins.merge(username, 1, Integer::sum);
+    }
+
+    // record a multiplayer question being played (used from GameRoom)
+    public static void incrementMultiQuestionPlayed(){
+        multiQuestionsPlayed++;
+        totalQuestionsPlayed++;
+    }
+
+    // update multiplayer highest score and global highest score (used from GameRoom)
+    public static void updateMultiHighestScore(int score){
+        if (score > multiHighestScoreEver) multiHighestScoreEver = score;
+        if (score > highestScoreEver) highestScoreEver = score;
     }
 
     // ---------- TEAM MULTIPLAYER (named teams) ----------
@@ -431,6 +473,7 @@ public class ClientHandler implements Runnable {
 
     private void finishGame(int score, PrintWriter out){
         gameScores.put(currentUser,score);
+        if(score > singleHighestScoreEver) singleHighestScoreEver = score;
         if(score > highestScoreEver) highestScoreEver = score;
         out.println("GAME OVER! Your score = " + score);
         scoreService.addScore(currentUser,score);
@@ -439,6 +482,8 @@ public class ClientHandler implements Runnable {
     }
 
     private int askQuestionWithTimer(Question q, PrintWriter out, BufferedReader in) throws IOException{
+        // single-player question
+        singleQuestionsPlayed++;
         totalQuestionsPlayed++;
         AtomicBoolean active = new AtomicBoolean(true);
         out.println("QUESTION: " + q.getText());

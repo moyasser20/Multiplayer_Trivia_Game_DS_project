@@ -84,9 +84,29 @@ public class GameRoom {
     public void startGame(String category, String difficulty, int numQuestions) throws IOException {
         started.set(true);
 
-        broadcast("GAME STARTED!");
-        broadcast("Team " + teamA.getTeamName() + ": " + teamA.size() + " players");
-        broadcast("Team " + teamB.getTeamName() + ": " + teamB.size() + " players");
+        broadcast("=========== TEAM GAME STARTED ===========");
+        broadcast("Category   : " + category);
+        broadcast("Difficulty : " + difficulty);
+        broadcast("Questions  : " + numQuestions);
+        broadcast("----------------------------------------");
+        broadcast("Team " + teamA.getTeamName() + " (" + teamA.size() + " players):");
+        if (teamA.getPlayers().isEmpty()) {
+            broadcast("  (no players)");
+        } else {
+            for (String p : teamA.getPlayers()) {
+                broadcast("  - " + p);
+            }
+        }
+        broadcast("----------------------------------------");
+        broadcast("Team " + teamB.getTeamName() + " (" + teamB.size() + " players):");
+        if (teamB.getPlayers().isEmpty()) {
+            broadcast("  (no players)");
+        } else {
+            for (String p : teamB.getPlayers()) {
+                broadcast("  - " + p);
+            }
+        }
+        broadcast("========================================");
 
         // Fetch a per-game batch so each game has its own questions.
         java.util.List<Question> questions = questionService.getBatch(category, difficulty, numQuestions);

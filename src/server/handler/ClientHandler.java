@@ -416,7 +416,9 @@ public class ClientHandler implements Runnable {
             return;
         }
         if (A.players.size() != B.players.size()){
-            out.println("Teams must have equal number of players");
+            out.println("TEAM_SIZE_ERROR: Both teams must have the SAME number of players before starting.");
+            out.println("Team " + A.name + " size = " + A.players.size());
+            out.println("Team " + B.name + " size = " + B.players.size());
             return;
         }
 

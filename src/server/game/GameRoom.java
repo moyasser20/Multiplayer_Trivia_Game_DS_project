@@ -2,6 +2,7 @@ package server.game;
 
 import server.model.Question;
 import server.service.QuestionService;
+import server.handler.ClientHandler;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -20,6 +21,15 @@ public class GameRoom {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean acceptingAnswers = new AtomicBoolean(false);
     private final Map<String, String> currentAnswers = new ConcurrentHashMap<>();
+
+    // per-question history for breakdown
+    private static class QuestionResult {
+        Question question;
+        Map<String,String> answers = new java.util.HashMap<>();
+        QuestionResult(Question q){ this.question = q; }
+    }
+
+    private final java.util.List<QuestionResult> history = new java.util.ArrayList<>();
 
     public GameRoom(Team teamA, Team teamB, QuestionService questionService,
                     int minRoomPlayers, int maxRoomPlayers) {
@@ -70,7 +80,7 @@ public class GameRoom {
         currentAnswers.putIfAbsent(username, answer.trim().toUpperCase());
     }
 
-    public void startGame(int numQuestions) throws IOException {
+    public void startGame(String category, String difficulty, int numQuestions) throws IOException {
         started.set(true);
 
         broadcast("GAME STARTED!");
@@ -78,8 +88,7 @@ public class GameRoom {
         broadcast("Team " + teamB.getTeamName() + ": " + teamB.size() + " players");
 
         // Fetch a per-game batch so each game has its own questions.
-        // Category/difficulty are currently mixed; you can change to specific ones later.
-        java.util.List<Question> questions = questionService.getBatch("*", "*", numQuestions);
+        java.util.List<Question> questions = questionService.getBatch(category, difficulty, numQuestions);
         if (questions.isEmpty()) {
             broadcast("No questions available.");
             return;
@@ -90,6 +99,8 @@ public class GameRoom {
 
             currentAnswers.clear();
             acceptingAnswers.set(true);
+            QuestionResult qr = new QuestionResult(q);
+            history.add(qr);
 
             broadcast("QUESTION " + (i + 1) + ": " + q.getText());
             char option = 'A';
@@ -126,10 +137,37 @@ public class GameRoom {
         broadcast("GAME OVER");
         broadcast(teamA.getTeamName() + " score: " + teamA.getScore());
         broadcast(teamB.getTeamName() + " score: " + teamB.getScore());
+
+        // determine wins for teams
+        if (teamA.getScore() > teamB.getScore()) {
+            for (String u : teamA.getPlayers()) {
+                ClientHandler.registerWin(u);
+            }
+        } else if (teamB.getScore() > teamA.getScore()) {
+            for (String u : teamB.getPlayers()) {
+                ClientHandler.registerWin(u);
+            }
+        }
+
+        // detailed breakdown
+        broadcast("----- QUESTION BREAKDOWN -----");
+        for (int i = 0; i < history.size(); i++) {
+            QuestionResult qr = history.get(i);
+            broadcast("Q" + (i+1) + ": " + qr.question.getText());
+            broadcast("Correct: " + qr.question.getCorrectAnswer());
+            for (Map.Entry<String,String> e : qr.answers.entrySet()) {
+                broadcast("  " + e.getKey() + " answered: " + e.getValue());
+            }
+        }
+        broadcast("------------------------------");
     }
 
     private void evaluate(Question q) {
         String correct = q.getCorrectAnswer();
+        QuestionResult last = history.isEmpty() ? null : history.get(history.size() - 1);
+        if (last != null) {
+            last.answers.putAll(currentAnswers);
+        }
         for (Map.Entry<String, String> e : currentAnswers.entrySet()) {
             String username = e.getKey();
             String answer = e.getValue();

@@ -23,7 +23,6 @@ public class GameRoom {
     private final AtomicBoolean acceptingAnswers = new AtomicBoolean(false);
     private final Map<String, String> currentAnswers = new ConcurrentHashMap<>();
 
-    // per-question history for breakdown
     private static class QuestionResult {
         Question question;
         Map<String,String> answers = new java.util.HashMap<>();
@@ -71,10 +70,6 @@ public class GameRoom {
                 && teamB.size() > 0;
     }
 
-    /**
-     * Called from ClientHandler when user sends A-D during a question.
-     * Only one answer per user per question (first submission counts).
-     */
     public void submitAnswer(String username, String answer) {
         if (!acceptingAnswers.get()) return;
         if (answer == null || !answer.trim().toUpperCase().matches("[A-D]")) return;
@@ -108,7 +103,6 @@ public class GameRoom {
         }
         broadcast("========================================");
 
-        // Fetch a per-game batch so each game has its own questions.
         java.util.List<Question> questions = questionService.getBatch(category, difficulty, numQuestions);
         if (questions.isEmpty()) {
             LookupClient.Status st = questionService.getLastLookupStatus();
@@ -124,7 +118,6 @@ public class GameRoom {
 
         for (int i = 0; i < questions.size(); i++) {
             Question q = questions.get(i);
-            // multiplayer question
             ClientHandler.incrementMultiQuestionPlayed();
 
             currentAnswers.clear();
@@ -141,7 +134,6 @@ public class GameRoom {
             }
             broadcast("15 seconds to answer! (Reply with A, B, C, or D)");
 
-            // Countdown 15 -> 10 -> 5 -> TIME UP (same as single player)
             Thread timerThread = new Thread(() -> {
                 try {
                     Thread.sleep(5000);
@@ -169,7 +161,6 @@ public class GameRoom {
         broadcast(teamA.getTeamName() + " score: " + teamA.getScore());
         broadcast(teamB.getTeamName() + " score: " + teamB.getScore());
 
-        // determine wins for teams and update multiplayer highest score
         int gameHigh = Math.max(teamA.getScore(), teamB.getScore());
         ClientHandler.updateMultiHighestScore(gameHigh);
         if (teamA.getScore() > teamB.getScore()) {
@@ -182,7 +173,6 @@ public class GameRoom {
             }
         }
 
-        // detailed breakdown
         broadcast("----- QUESTION BREAKDOWN -----");
         for (int i = 0; i < history.size(); i++) {
             QuestionResult qr = history.get(i);

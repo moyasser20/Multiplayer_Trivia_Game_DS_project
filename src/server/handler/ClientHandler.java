@@ -327,7 +327,6 @@ public class ClientHandler implements Runnable {
                 out.println("  Multiplayer highest:    " + multiHighestScoreEver);
 
                 // players with highest score ever (single or multi)
-                // players with highest score ever (single or multi)
 
                 if (gameScores.isEmpty()) {
                     out.println("No players have recorded scores yet.");

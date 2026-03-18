@@ -3,6 +3,7 @@ package server.game;
 import server.model.Question;
 import server.service.QuestionService;
 import server.handler.ClientHandler;
+import server.lookup.LookupClient;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -90,7 +91,14 @@ public class GameRoom {
         // Fetch a per-game batch so each game has its own questions.
         java.util.List<Question> questions = questionService.getBatch(category, difficulty, numQuestions);
         if (questions.isEmpty()) {
-            broadcast("No questions available.");
+            LookupClient.Status st = questionService.getLastLookupStatus();
+            if (st == LookupClient.Status.OFFLINE) {
+                broadcast("LOOKUP SERVER OFFLINE: No questions can be retrieved.");
+            } else if (st == LookupClient.Status.NONE) {
+                broadcast("No questions found on lookup server for the selected criteria.");
+            } else {
+                broadcast("Could not retrieve questions (lookup error).");
+            }
             return;
         }
 
@@ -104,6 +112,7 @@ public class GameRoom {
             QuestionResult qr = new QuestionResult(q);
             history.add(qr);
 
+            broadcast("QUESTION SOURCE: LOOKUP SERVER");
             broadcast("QUESTION " + (i + 1) + ": " + q.getText());
             char option = 'A';
             for (String choice : q.getChoices()) {

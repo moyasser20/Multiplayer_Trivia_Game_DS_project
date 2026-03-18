@@ -22,18 +22,22 @@ public class MainServer {
         ServerSocket serverSocket = new ServerSocket(config.getGamePort());
 
         UserRepository userRepo = new FileUserRepository("src/data/users.txt");
-        QuestionRepository questionRepo = new FileQuestionRepository("src/data/questions.txt");
+        // In lookup_only mode, the game server should not read questions locally.
+        QuestionRepository questionRepo = config.isLookupOnly() ? null : new FileQuestionRepository("src/data/questions.txt");
         ScoreRepository scoreRepo = new FileScoreRepository("src/data/scores.txt");
 
         AuthService authService = new AuthService(userRepo);
         QuestionService questionService = new QuestionService(
                 questionRepo,
                 config.getLookupHost(),
-                config.getLookupPort()
+                config.getLookupPort(),
+                config.isLookupOnly()
         );
         ScoreService scoreService = new ScoreService(scoreRepo);
 
         System.out.println("Trivia Server started on port " + config.getGamePort() + "...");
+        System.out.println("Lookup server: " + config.getLookupHost() + ":" + config.getLookupPort()
+                + " (lookup_only=" + config.isLookupOnly() + ")");
 
         while (true) {
 

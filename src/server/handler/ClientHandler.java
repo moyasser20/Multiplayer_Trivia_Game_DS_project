@@ -8,6 +8,7 @@ import server.service.ScoreService;
 import server.game.Team;
 import server.game.GameRoom;
 import server.game.GameConfig;
+import server.lookup.LookupClient;
 
 import java.io.*;
 import java.net.Socket;
@@ -519,7 +520,19 @@ public class ClientHandler implements Runnable {
         int score = 0;
         for(int i=0;i<numQuestions;i++){
             Question q = questionService.getRandomQuestion(category,difficulty);
-            if(q == null){ out.println("No more questions for " + category + " / " + difficulty + ". Try easy/medium/hard."); break;}
+            if (q == null) {
+                LookupClient.Status st = questionService.getLastLookupStatus();
+                if (st == LookupClient.Status.OFFLINE) {
+                    out.println("LOOKUP SERVER OFFLINE: Please start LookupServerMain then try again.");
+                } else if (st == LookupClient.Status.NONE) {
+                    out.println("No questions found on lookup server for " + category + " / " + difficulty + ".");
+                } else {
+                    out.println("Could not retrieve question (lookup error).");
+                }
+                break;
+            } else {
+                out.println("QUESTION SOURCE: LOOKUP SERVER");
+            }
             score += askQuestionWithTimer(q,out,in);
         }
         finishGame(score,out);
@@ -549,7 +562,19 @@ public class ClientHandler implements Runnable {
         int score = 0;
         for(int i=0;i<numQuestions;i++){
             Question q = questionService.getRandomTriviaQuestion();
-            if(q == null){ out.println("No questions available."); break;}
+            if (q == null) {
+                LookupClient.Status st = questionService.getLastLookupStatus();
+                if (st == LookupClient.Status.OFFLINE) {
+                    out.println("LOOKUP SERVER OFFLINE: Please start LookupServerMain then try again.");
+                } else if (st == LookupClient.Status.NONE) {
+                    out.println("No questions available on lookup server.");
+                } else {
+                    out.println("Could not retrieve question (lookup error).");
+                }
+                break;
+            } else {
+                out.println("QUESTION SOURCE: LOOKUP SERVER");
+            }
             score += askQuestionWithTimer(q,out,in);
         }
         finishGame(score,out);

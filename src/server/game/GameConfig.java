@@ -8,6 +8,7 @@ public class GameConfig {
     private final int maxRoomPlayers;
     private final String lookupHost;
     private final int lookupPort;
+    private final boolean lookupOnly;
     private final int gamePort;
 
     public GameConfig(String configPath) {
@@ -15,6 +16,7 @@ public class GameConfig {
         int max = 4;
         String lHost = "localhost";
         int lPort = 6000;
+        boolean lOnly = false;
         int gPort = 5000;
         try {
             Path path = Paths.get(configPath);
@@ -35,6 +37,8 @@ public class GameConfig {
                         lHost = value;
                     } else if (key.equals("lookup_port")) {
                         lPort = Integer.parseInt(value);
+                    } else if (key.equals("lookup_only")) {
+                        lOnly = value.equalsIgnoreCase("true") || value.equalsIgnoreCase("1") || value.equalsIgnoreCase("yes");
                     } else if (key.equals("game_port")) {
                         gPort = Integer.parseInt(value);
                     }
@@ -47,6 +51,7 @@ public class GameConfig {
         this.maxRoomPlayers = Math.max(minRoomPlayers, max);
         this.lookupHost = lHost == null || lHost.isBlank() ? "localhost" : lHost;
         this.lookupPort = lPort <= 0 ? 6000 : lPort;
+        this.lookupOnly = lOnly;
         this.gamePort = gPort <= 0 ? 5000 : gPort;
     }
 
@@ -64,6 +69,10 @@ public class GameConfig {
 
     public int getLookupPort() {
         return lookupPort;
+    }
+
+    public boolean isLookupOnly() {
+        return lookupOnly;
     }
 
     public int getGamePort() {

@@ -38,6 +38,7 @@ public class LookupRequestHandler implements Runnable {
             String cmd = parts[0].trim().toUpperCase();
 
             if (cmd.equals(LookupProtocol.REQ_PING)) {
+                System.out.println("[LOOKUP_SERVER] PING from " + socket.getInetAddress());
                 out.println(LookupProtocol.RES_PONG);
                 return;
             }
@@ -45,6 +46,8 @@ public class LookupRequestHandler implements Runnable {
             if (cmd.equals(LookupProtocol.REQ_GET_ONE)) {
                 String category = parts.length > 1 ? parts[1].trim() : "*";
                 String difficulty = parts.length > 2 ? parts[2].trim() : "*";
+                System.out.println("[LOOKUP_SERVER] GET_ONE category=" + category + " difficulty=" + difficulty
+                        + " from " + socket.getInetAddress());
                 Question q = pickOne(category, difficulty);
                 if (q == null) {
                     out.println(LookupProtocol.RES_NONE);
@@ -60,6 +63,8 @@ public class LookupRequestHandler implements Runnable {
                 String category = parts.length > 1 ? parts[1].trim() : "*";
                 String difficulty = parts.length > 2 ? parts[2].trim() : "*";
                 int count = parts.length > 3 ? Integer.parseInt(parts[3].trim()) : 1;
+                System.out.println("[LOOKUP_SERVER] GET_BATCH category=" + category + " difficulty=" + difficulty
+                        + " count=" + count + " from " + socket.getInetAddress());
                 List<Question> batch = pickBatch(category, difficulty, count);
                 if (batch.isEmpty()) {
                     out.println(LookupProtocol.RES_NONE);

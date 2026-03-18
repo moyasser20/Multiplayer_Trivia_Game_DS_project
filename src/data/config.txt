@@ -5,6 +5,7 @@ max_room_players=4
 # Lookup server connection (game server -> lookup server)
 lookup_host=localhost
 lookup_port=6000
+lookup_only=true
 
 # Game server port
 game_port=5000
